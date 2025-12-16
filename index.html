@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WebGPU Raytracer + AI Denoising Arch</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="ui-container">
+        <div class="panel">
+            <h1>RayTracer <span class="accent">AI</span></h1>
+            <div class="stat-row">
+                <span class="label">FPS:</span>
+                <span id="fps-counter" class="value">0</span>
+            </div>
+            
+            <div class="control-group">
+                <label class="switch">
+                    <input type="checkbox" id="denoise-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span>AI Denoising (Neural Sim)</span>
+            </div>
+
+            <div class="control-group">
+                <label class="switch">
+                    <input type="checkbox" id="accumulate-toggle">
+                    <span class="slider"></span>
+                </label>
+                <span>Temporal Accumulation</span>
+            </div>
+
+            <p class="hint">Controls: WASD + Mouse (Desktop) / Joystick (Mobile)</p>
+        </div>
+    </div>
+    
+    <canvas id="gpu-canvas"></canvas>
+    <div id="joystick-zone"></div>
+
+    <!-- Import Map for Nipple.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "nipplejs": "https://esm.sh/nipplejs@0.10.1"
+            }
+        }
+    </script>
+    <script type="module" src="main.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
