@@ -165,7 +165,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // Initialize RNG
     let pixel_index = id.y * width + id.x;
-    rnd_state = hash(pixel_index ^ hash(uniforms.frame));
+    // Mix time into seed so noise animates even when not accumulating
+    rnd_state = hash(pixel_index ^ hash(uniforms.frame) ^ hash(u32(uniforms.time * 120.0)));
 
     // Camera setup
     let uv = (vec2f(f32(id.x), f32(id.y)) + vec2f(rand(), rand())) / uniforms.resolution * 2.0 - 1.0;

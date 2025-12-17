@@ -54,9 +54,11 @@ export class WebGPURenderer {
         this.canvas.width = this.width;
         this.canvas.height = this.height;
         
+        // Use rgba8unorm for compatibility with storage textures (compute write)
         this.context.configure({
             device: this.device,
-            format: navigator.gpu.getPreferredCanvasFormat(),
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING,
             alphaMode: 'premultiplied'
         });
 

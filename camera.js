@@ -35,7 +35,7 @@ export class Camera {
             const dy = e.clientY - this.drag.lastY;
             
             this.yaw -= dx * 0.005;
-            this.pitch += dy * 0.005;
+            this.pitch -= dy * 0.005;
             
             // Clamp pitch to prevent flipping
             this.pitch = Math.max(-1.5, Math.min(1.5, this.pitch));
@@ -58,7 +58,7 @@ export class Camera {
                 const dy = e.touches[0].clientY - this.drag.lastY;
                 
                 this.yaw -= dx * 0.01;
-                this.pitch += dy * 0.01;
+                this.pitch -= dy * 0.01;
                 this.pitch = Math.max(-1.5, Math.min(1.5, this.pitch));
                 
                 this.drag.lastX = e.touches[0].clientX;
