@@ -24,8 +24,8 @@ struct Uniforms {
 // Random Utilities
 fn hash(p: u32) -> u32 {
     var x = p;
-    x = ((x >> 16u) ^ x) * 0x45d9f3b_u;
-    x = ((x >> 16u) ^ x) * 0x45d9f3b_u;
+    x = ((x >> 16u) ^ x) * 0x45d9f3bu;
+    x = ((x >> 16u) ^ x) * 0x45d9f3bu;
     x = (x >> 16u) ^ x;
     return x;
 }
@@ -206,21 +206,21 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             }
             
             // Scatter
-            var target = vec3f(0.0);
+            var scatter_target = vec3f(0.0);
             if (hit.mat_type == 1u) {
                 // Metal / Specular
                 let reflected = reflect(ray.direction, hit.normal);
-                target = reflected + rand_in_unit_sphere() * hit.roughness;
+                scatter_target = reflected + rand_in_unit_sphere() * hit.roughness;
                 throughput *= hit.albedo;
             } else {
                 // Diffuse
-                target = hit.normal + rand_in_unit_sphere();
+                scatter_target = hit.normal + rand_in_unit_sphere();
                 // Lambertian
                 throughput *= hit.albedo * 0.5; 
             }
             
             ray.origin = hit.pos;
-            ray.direction = normalize(target);
+            ray.direction = normalize(scatter_target);
         } else {
             // Sky
             let t = 0.5 * (ray.direction.y + 1.0);
@@ -299,7 +299,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             let sample_col = textureLoad(inputTex, sample_pos, 0).rgb;
             
             // Spatial weight (Gaussian)
-            let w_spatial = exp(-dot(vec2f(vec2f(x,y)), vec2f(vec2f(x,y))) * 0.15);
+            let offset_f = vec2f(f32(x), f32(y));
+            let w_spatial = exp(-dot(offset_f, offset_f) * 0.15);
             
             // Color weight (Edge preservation - similar to features learned by CNN)
             let color_dist = length(center_color - sample_col);
