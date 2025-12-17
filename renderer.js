@@ -26,6 +26,11 @@ export class WebGPURenderer {
         this.device = await this.adapter.requestDevice();
         this.context = this.canvas.getContext('webgpu');
         
+        // Initial resize to ensure textures exist before pipeline setup
+        const initialWidth = Math.max(1, this.canvas.clientWidth);
+        const initialHeight = Math.max(1, this.canvas.clientHeight);
+        this.resize(initialWidth, initialHeight);
+
         // Resize observer
         const observer = new ResizeObserver(entries => {
             for (let entry of entries) {
@@ -40,9 +45,11 @@ export class WebGPURenderer {
     }
     
     resize(width, height) {
-        // Clamp for performance on high DPI
-        this.width = Math.min(width, 1920); 
-        this.height = Math.min(height, 1080);
+        if (width === 0 || height === 0) return;
+        
+        // Clamp for performance on high DPI, ensure min 1
+        this.width = Math.max(1, Math.min(width, 1920)); 
+        this.height = Math.max(1, Math.min(height, 1080));
         
         this.canvas.width = this.width;
         this.canvas.height = this.height;
@@ -59,6 +66,9 @@ export class WebGPURenderer {
     }
 
     createTextures() {
+        if (this.traceTexture) this.traceTexture.destroy();
+        if (this.historyTexture) this.historyTexture.destroy();
+
         // 1. Raytracer Output (HDR, float)
         this.traceTexture = this.device.createTexture({
             size: [this.width, this.height, 1],
