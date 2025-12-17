@@ -180,7 +180,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     
     // Multi-sample loop for less noise
     var accumulated_color = vec3f(0.0);
-    let samples = 2u; // 2 samples per pixel per frame
+    let samples = 4u; // Increased from 2u to 4u for better base quality
 
     for (var s = 0u; s < samples; s++) {
         // Jitter for Anti-Aliasing
@@ -227,7 +227,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
                 break;
             }
         }
-        accumulated_color += col;
+        // Firefly clamping: Limit max energy per sample to prevent speckles
+        accumulated_color += min(col, vec3f(8.0));
     }
     
     var final_col = vec4f(accumulated_color / f32(samples), 1.0);
@@ -280,32 +281,34 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
-    // Improved Bilateral Filter (Approx "Neural" Smoothing)
+    // Bilateral Filter
     var sum_col = vec3f(0.0);
     var sum_weight = 0.0;
     
-    // 7x7 Kernel (k=3)
-    let k_size = 3; 
+    // 5x5 Kernel (k=2) is sharper and faster
+    let k_size = 2; 
     
     for(var y = -k_size; y <= k_size; y++) {
         for(var x = -k_size; x <= k_size; x++) {
             let offset = vec2<i32>(x, y);
             let sample_pos = coords + offset;
             
-            if (sample_pos.x < 0 || sample_pos.y < 0 || u32(sample_pos.x) >= width || u32(sample_pos.y) >= height) {
-                continue;
-            }
+            // Clamp to edge
+            let sx = clamp(sample_pos.x, 0, i32(width) - 1);
+            let sy = clamp(sample_pos.y, 0, i32(height) - 1);
             
-            let sample_col = textureLoad(inputTex, sample_pos, 0).rgb;
+            let sample_col = textureLoad(inputTex, vec2<i32>(sx, sy), 0).rgb;
             
-            // Spatial weight - broadened for smoother look
+            // Spatial weight
             let offset_f = vec2f(f32(x), f32(y));
-            let w_spatial = exp(-dot(offset_f, offset_f) * 0.1); 
+            let dist2 = dot(offset_f, offset_f);
+            let w_spatial = exp(-dist2 * 0.15); // Slightly tighter spatial falloff
             
-            // Color weight - relaxed sensitivity to blur noise
-            let color_dist = length(center_color - sample_col);
-            // Reduced coefficient (10.0 -> 0.5) to treat noise as "flat" surface
-            let w_color = exp(-color_dist * color_dist * 0.5); 
+            // Color weight - Increased coefficient to preserve edges
+            let color_diff = center_color - sample_col;
+            let color_dist2 = dot(color_diff, color_diff);
+            // Coeff 5.0 allows smoothing noise (small diff) but preserves structure (large diff)
+            let w_color = exp(-color_dist2 * 5.0); 
             
             let weight = w_spatial * w_color;
             

@@ -14,6 +14,9 @@ let lastTime = 0;
 let frameCount = 0;
 let lastFpsTime = 0;
 
+// Camera State Tracking for Accumulation Reset
+let lastCamHash = "";
+
 async function init() {
     try {
         await renderer.init();
@@ -35,10 +38,15 @@ function loop(timestamp) {
     // Logic
     camera.update(dt);
     
-    // Check if camera moved significantly to reset accumulation
-    // (Simplification: we just reset every frame unless Accumulate toggle is ON and no input)
-    // For this demo, we handle accumulation reset in renderer based on toggle
+    // Check if camera moved to reset accumulation
+    const currentCamHash = `${camera.position.x.toFixed(3)}_${camera.position.y.toFixed(3)}_${camera.position.z.toFixed(3)}_${camera.yaw.toFixed(3)}_${camera.pitch.toFixed(3)}`;
     
+    if (currentCamHash !== lastCamHash) {
+        // Camera moved
+        renderer.frame = 0;
+        lastCamHash = currentCamHash;
+    }
+
     // UI Updates
     if (renderer.denoiseEnabled !== denoiseToggle.checked) {
         renderer.denoiseEnabled = denoiseToggle.checked;

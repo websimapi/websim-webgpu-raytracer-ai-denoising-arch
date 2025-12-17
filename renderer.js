@@ -120,6 +120,8 @@ export class WebGPURenderer {
     }
 
     createBindGroups() {
+        if (!this.traceTexture || !this.historyTexture) return;
+
         this.raytraceBindGroup = this.device.createBindGroup({
             layout: this.raytracePipeline.getBindGroupLayout(0),
             entries: [
@@ -163,11 +165,13 @@ export class WebGPURenderer {
         const commandEncoder = this.device.createCommandEncoder();
 
         // --- Pass 1: Raytrace ---
-        const passEncoder = commandEncoder.beginComputePass();
-        passEncoder.setPipeline(this.raytracePipeline);
-        passEncoder.setBindGroup(0, this.raytraceBindGroup);
-        passEncoder.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
-        passEncoder.end();
+        if (this.raytraceBindGroup) {
+            const passEncoder = commandEncoder.beginComputePass();
+            passEncoder.setPipeline(this.raytracePipeline);
+            passEncoder.setBindGroup(0, this.raytraceBindGroup);
+            passEncoder.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8));
+            passEncoder.end();
+        }
 
         // --- Pass 2: Denoise (or copy to screen) ---
         // We output from Raytrace (traceTexture) -> Denoiser -> Screen (Canvas Texture)
