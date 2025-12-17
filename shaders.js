@@ -165,78 +165,78 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // Initialize RNG
     let pixel_index = id.y * width + id.x;
-    // Mix time into seed so noise animates even when not accumulating
     rnd_state = hash(pixel_index ^ hash(uniforms.frame) ^ hash(u32(uniforms.time * 120.0)));
 
-    // Camera setup
-    let uv = (vec2f(f32(id.x), f32(id.y)) + vec2f(rand(), rand())) / uniforms.resolution * 2.0 - 1.0;
-    // Fix aspect ratio
+    // Camera Pre-calc
     let aspect = uniforms.resolution.x / uniforms.resolution.y;
-    let screen_pos = vec3f(uv.x * aspect, uv.y, -1.0); // -1.0 is focal length
-
-    // Transform ray by camera matrix
-    let cz = normalize(uniforms.camera_pos - (uniforms.camera_pos + vec3f(sin(uniforms.camera_yaw), 0.0, cos(uniforms.camera_yaw))));
-    // Simple look-from, look-at logic replacement with yaw/pitch for full control:
-    // Actually, let's just use the uniforms passed by our Camera class
-    // Reconstructing View Matrix from angles:
     let cy = cos(uniforms.camera_yaw);
     let sy = sin(uniforms.camera_yaw);
     let cp = cos(uniforms.camera_pitch);
     let sp = sin(uniforms.camera_pitch);
     
-    let fwd = vec3f(sy * cp, sp, -cy * cp); // Forward
+    let fwd = vec3f(sy * cp, sp, -cy * cp);
     let right = normalize(cross(fwd, vec3f(0.0, 1.0, 0.0)));
     let up = cross(right, fwd);
     
-    // Ray dir
-    let ray_dir = normalize(fwd * 1.5 + right * uv.x * aspect - up * uv.y); 
-    
-    var ray = Ray(uniforms.camera_pos, ray_dir);
-    var col = vec3f(0.0);
-    var throughput = vec3f(1.0);
-    
-    // Bounces
-    for(var i = 0; i < 4; i++) {
-        let hit = world_hit(ray);
+    // Multi-sample loop for less noise
+    var accumulated_color = vec3f(0.0);
+    let samples = 2u; // 2 samples per pixel per frame
+
+    for (var s = 0u; s < samples; s++) {
+        // Jitter for Anti-Aliasing
+        let uv_jitter = vec2f(rand(), rand());
+        let uv = (vec2f(f32(id.x), f32(id.y)) + uv_jitter) / uniforms.resolution * 2.0 - 1.0;
         
-        if (hit.hit) {
-            if (hit.mat_type == 2u) {
-                // Emissive
-                col += throughput * hit.albedo;
+        let ray_dir = normalize(fwd * 1.5 + right * uv.x * aspect - up * uv.y); 
+        var ray = Ray(uniforms.camera_pos, ray_dir);
+        
+        var col = vec3f(0.0);
+        var throughput = vec3f(1.0);
+        
+        // Bounces
+        for(var i = 0; i < 4; i++) {
+            let hit = world_hit(ray);
+            
+            if (hit.hit) {
+                if (hit.mat_type == 2u) {
+                    // Emissive
+                    col += throughput * hit.albedo;
+                    break;
+                }
+                
+                // Scatter
+                var scatter_target = vec3f(0.0);
+                if (hit.mat_type == 1u) {
+                    // Metal / Specular
+                    let reflected = reflect(ray.direction, hit.normal);
+                    scatter_target = reflected + rand_in_unit_sphere() * hit.roughness;
+                    throughput *= hit.albedo;
+                } else {
+                    // Diffuse
+                    scatter_target = hit.normal + rand_in_unit_sphere();
+                    throughput *= hit.albedo * 0.5; 
+                }
+                
+                ray.origin = hit.pos;
+                ray.direction = normalize(scatter_target);
+            } else {
+                // Sky
+                let t = 0.5 * (ray.direction.y + 1.0);
+                let sky = (1.0 - t) * vec3f(1.0, 1.0, 1.0) + t * vec3f(0.5, 0.7, 1.0);
+                col += throughput * sky * 0.5;
                 break;
             }
-            
-            // Scatter
-            var scatter_target = vec3f(0.0);
-            if (hit.mat_type == 1u) {
-                // Metal / Specular
-                let reflected = reflect(ray.direction, hit.normal);
-                scatter_target = reflected + rand_in_unit_sphere() * hit.roughness;
-                throughput *= hit.albedo;
-            } else {
-                // Diffuse
-                scatter_target = hit.normal + rand_in_unit_sphere();
-                // Lambertian
-                throughput *= hit.albedo * 0.5; 
-            }
-            
-            ray.origin = hit.pos;
-            ray.direction = normalize(scatter_target);
-        } else {
-            // Sky
-            let t = 0.5 * (ray.direction.y + 1.0);
-            let sky = (1.0 - t) * vec3f(1.0, 1.0, 1.0) + t * vec3f(0.5, 0.7, 1.0);
-            col += throughput * sky * 0.5; // Dim sky
-            break;
         }
+        accumulated_color += col;
     }
     
-    // Accumulation logic could go here, but we output raw noisy frame for denoiser
-    var final_col = vec4f(col, 1.0);
+    var final_col = vec4f(accumulated_color / f32(samples), 1.0);
     
+    // Temporal Accumulation
     if (uniforms.accumulate == 1u && uniforms.frame > 0u) {
         let old = textureLoad(historyTex, vec2<i32>(id.xy), 0);
-        let weight = 1.0 / (f32(uniforms.frame) % 100.0 + 1.0); // Basic rolling accumulation reset
+        // True accumulation weight (1/N) for convergence
+        let weight = 1.0 / (f32(uniforms.frame) + 1.0); 
         final_col = mix(old, final_col, weight);
     }
 
@@ -273,18 +273,18 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // Pass-through if disabled
     if (uniforms.enabled == 0u) {
-        textureStore(outputTex, coords, vec4f(center_color, 1.0));
+        // Tone map anyway for consistency
+        var col = center_color / (center_color + vec3f(1.0));
+        col = pow(col, vec3f(1.0/2.2));
+        textureStore(outputTex, coords, vec4f(col, 1.0));
         return;
     }
 
-    // "AI" Simulation: Bilateral Filter
-    // In a real WebNN pipeline, this would be an ONNX model inference call.
-    // Here we simulate the edge-preserving smoothing capabilities of such a network.
-    
+    // Improved Bilateral Filter (Approx "Neural" Smoothing)
     var sum_col = vec3f(0.0);
     var sum_weight = 0.0;
     
-    // 9x9 Kernel for aggressive denoising (simulating larger receptive field)
+    // 7x7 Kernel (k=3)
     let k_size = 3; 
     
     for(var y = -k_size; y <= k_size; y++) {
@@ -292,20 +292,20 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             let offset = vec2<i32>(x, y);
             let sample_pos = coords + offset;
             
-            // Bounds check
             if (sample_pos.x < 0 || sample_pos.y < 0 || u32(sample_pos.x) >= width || u32(sample_pos.y) >= height) {
                 continue;
             }
             
             let sample_col = textureLoad(inputTex, sample_pos, 0).rgb;
             
-            // Spatial weight (Gaussian)
+            // Spatial weight - broadened for smoother look
             let offset_f = vec2f(f32(x), f32(y));
-            let w_spatial = exp(-dot(offset_f, offset_f) * 0.15);
+            let w_spatial = exp(-dot(offset_f, offset_f) * 0.1); 
             
-            // Color weight (Edge preservation - similar to features learned by CNN)
+            // Color weight - relaxed sensitivity to blur noise
             let color_dist = length(center_color - sample_col);
-            let w_color = exp(-color_dist * color_dist * 10.0); // High sensitivity to edges
+            // Reduced coefficient (10.0 -> 0.5) to treat noise as "flat" surface
+            let w_color = exp(-color_dist * color_dist * 0.5); 
             
             let weight = w_spatial * w_color;
             
@@ -316,9 +316,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     
     var final_col = sum_col / sum_weight;
     
-    // Simple Tone Mapping
+    // Tone Mapping (Reinhard + Gamma)
     final_col = final_col / (final_col + vec3f(1.0));
-    final_col = pow(final_col, vec3f(1.0/2.2)); // Gamma correction
+    final_col = pow(final_col, vec3f(1.0/2.2)); 
 
     textureStore(outputTex, coords, vec4f(final_col, 1.0));
 }
