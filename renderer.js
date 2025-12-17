@@ -75,7 +75,7 @@ export class WebGPURenderer {
         this.traceTexture = this.device.createTexture({
             size: [this.width, this.height, 1],
             format: 'rgba16float',
-            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
         });
 
         // 2. History Texture (For temporal accumulation)
